@@ -54,5 +54,5 @@ app.post('/api/verify-code', (req, res) => {
     res.json({ success: true, message: 'تم التحقق بنجاح' });
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.MTUwOTE2MDE0NTQwMDEwNzAyOQ.GB1bNl.ColkAwrf6D5vlYmssH943niOoie577SWt8ki9U);
 app.listen(process.env.PORT || 3000, () => console.log('🚀 السيرفر شغال على port 3000'));
