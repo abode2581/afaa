@@ -1,9 +1,7 @@
 import express from 'express';
-import cors from 'cors';
 import { Client, GatewayIntentBits } from 'discord.js';
 
 const app = express();
-app.use(cors());
 app.use(express.json());
 
 const client = new Client({
@@ -13,46 +11,77 @@ const client = new Client({
     ]
 });
 
-const verificationCodes = new Map();
+// تخزين الرموز المؤقتة
+const codes = new Map();
 
-client.on('ready', () => {
-    console.log(`✅ البوت شغال: ${client.user.tag}`);
+client.once('ready', () => {
+    console.log(`✅ البوت شغال يا حلو! مسجل كـ ${client.user.tag}`);
 });
 
-// إرسال رمز التحقق للمستخدم
+//端点: إرسال رمز التحقق
 app.post('/api/send-verification', async (req, res) => {
     const { discordId } = req.body;
+    
+    if (!discordId) {
+        return res.json({ success: false, message: 'الآيدي مطلوب' });
+    }
+    
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     
     try {
         const user = await client.users.fetch(discordId);
-        await user.send(`🔐 رمز التحقق الخاص بك: ${code}\nأدخل هذا الرمز في الموقع لإكمال التسجيل.`);
-        verificationCodes.set(discordId, { code, expires: Date.now() + 900000 });
+        await user.send(`🔐 **رمز التحقق الخاص بك:**\n\`\`\`\n${code}\n\`\`\`\nهذا الرمز صالح لمدة 10 دقائق.`);
+        
+        codes.set(discordId, {
+            code: code,
+            expires: Date.now() + 10 * 60 * 1000
+        });
+        
         res.json({ success: true, message: 'تم إرسال الرمز' });
     } catch (error) {
-        res.json({ success: false, message: 'لم يتم إرسال الرمز. تأكد من أن المستخدم يقبل الرسائل الخاصة' });
+        console.error('خطأ في الإرسال:', error);
+        res.json({ success: false, message: 'لم نتمكن من إرسال الرمز. تأكد من صحة الآيدي وأن المستخدم يقبل الرسائل الخاصة.' });
     }
 });
 
-// التحقق من صحة الرمز
+//端点: التحقق من الرمز
 app.post('/api/verify-code', (req, res) => {
     const { discordId, code } = req.body;
-    const stored = verificationCodes.get(discordId);
+    
+    const stored = codes.get(discordId);
     
     if (!stored) {
-        return res.json({ success: false, message: 'لم يتم طلب رمز لهذا الحساب' });
+        return res.json({ success: false, message: 'لا يوجد رمز نشط لهذا الحساب' });
     }
+    
     if (Date.now() > stored.expires) {
-        verificationCodes.delete(discordId);
+        codes.delete(discordId);
         return res.json({ success: false, message: 'انتهت صلاحية الرمز' });
     }
+    
     if (stored.code !== code) {
         return res.json({ success: false, message: 'الرمز غير صحيح' });
     }
     
-    verificationCodes.delete(discordId);
+    codes.delete(discordId);
     res.json({ success: true, message: 'تم التحقق بنجاح' });
 });
 
-client.login(process.env.DISCORD_TOKEN);
-app.listen(process.env.PORT || 3000, () => console.log('🚀 السيرفر شغال على port 3000'));
+//端点: اختبار
+app.get('/', (req, res) => {
+    res.json({ status: 'online', bot: client.user?.tag || 'connecting...' });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🚀 السيرفر شغال على port ${PORT}`);
+});
+
+// تشغيل البوت
+const TOKEN = process.env.DISCORD_TOKEN;
+if (!TOKEN) {
+    console.error('❌ خطأ: ما لقيت التوكن! تأكد من إضافة DISCORD_TOKEN في Variables');
+    process.exit(1);
+}
+
+client.login(TOKEN);
